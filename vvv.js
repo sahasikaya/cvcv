@@ -19,6 +19,7 @@ var doodle = (function() {
     var
         PI_half = Math.PI / 2, resources = {};
 
+
     var Stage = function(canvas) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
@@ -39,6 +40,10 @@ var doodle = (function() {
         fps += (thisFrameFPS - fps) / fpsFilter;
         lastUpdate = now;
     }
+    //setInterval(function(){
+    // _l(fps.toFixed(1) + "fps");
+    //}, 1000);
+
 
     Stage.prototype.frame = function() {
         if (this.destroyed) {
@@ -70,10 +75,13 @@ var doodle = (function() {
             //recursivily call itself
             requestAnimationFrame(this.frame.bind(this))
         }
+
     };
 
     Stage.prototype.setup = function() {
+
         this.objects.push(getRandomFormation(this));
+
     };
 
     Stage.prototype.destroy = function() {
@@ -103,6 +111,7 @@ var doodle = (function() {
     };
 
     Formation.prototype.tick = function(ctx) {
+
         for (var i in this.planes) {
             if (this.planes[i].destroyed) {
                 _l("deleting plane " + i)
@@ -129,9 +138,9 @@ var doodle = (function() {
         _l("starting from:" + init_x + " ," + init_y);
         var formation = new Formation(init_x, init_y);
 
-        formation.addPlane(0, 0, "255, 0, 0"); // Red
-        formation.addPlane(50, -50, "255, 255, 0"); // Yellow
-        formation.addPlane(100, 0, "0, 128, 0"); // Green
+        formation.addPlane(0, 0, "255, 153, 51");
+        formation.addPlane(50, -50, "222, 222, 222");
+        formation.addPlane(100, 0, "0, 128, 0");
 
         var target_y = stage.ctx.canvas.height - init_y;
         var target_x = stage.ctx.canvas.width - init_x;
@@ -153,7 +162,7 @@ var doodle = (function() {
         return this;
     };
 
-    JetPlane.prototype.draw = function(ctx) {
+    JetPlane.prototype.draw = function (ctx) {
         ctx.save();
         var angle = Math.atan(this.pather.slope) + PI_half;
         //console.log(angle)
@@ -172,6 +181,7 @@ var doodle = (function() {
                 this.smoke_particles_list[i].draw(ctx);
             }
         }
+
     }
 
     JetPlane.prototype.travelTo = function(_x, _y, v) {
@@ -187,4 +197,124 @@ var doodle = (function() {
         this.x = this.pather.x + adj_x;
         this.y = this.pather.y + adj_y;
         if (this.smoke_particles_list.length < 100 && !this.destroy_plane) {
-            var delta_x = (11 + 2 * Math.random()) * Math.cos(angle) - (
+            var delta_x = (11 + 2 * Math.random()) * Math.cos(angle) - (29 + 4 * Math.random()) * Math.sin(angle);
+            var delta_y = (11 + 2 * Math.random()) * Math.sin(angle) + (29 + 4 * Math.random()) * Math.cos(angle);
+            var smoke_particle = new SmokeParticle(this.x + delta_x, this.y + delta_y, this.smoke_rgb)
+            this.smoke_particles_list.push(smoke_particle);
+        }
+        this.draw(ctx);
+
+        var bbw = 50; //bounding box width
+        if (this.x > ctx.canvas.width + bbw || this.y > ctx.canvas.height + bbw || this.x < 0 - bbw || this.y < 0 - bbw) {
+            this.destroy_plane = true;
+        } else {
+            this.destroy_plane = false;
+        }
+
+        if (this.destroy_plane && this.smoke_particles_list.length == 0) {
+            this.destroy()
+        }
+
+    };
+
+    JetPlane.prototype.destroy = function() {
+        this.destroyed = true;
+    }
+
+
+    var PathMaker = function() {
+        this.speed = 2.5;
+        this.slope = null
+        this.x = 0;
+        this.y = 0;
+        this.delta_x = 0;
+        this.delta_y = 0;
+    };
+
+    PathMaker.prototype.createPath = function(x1, y1, x2, y2, v) {
+        this.x = x1;
+        this.y = y1;
+        this.delta_x = x2 - x1;
+        this.delta_y = y2 - y1;
+        this.slope = this.delta_y / this.delta_x;
+        this.speed = v;
+    }
+
+    PathMaker.prototype.setSpeed = function (v) {
+        this.speed = v;
+    }
+
+    PathMaker.prototype.move = function () {
+        this.x = this.x + Math.cos(Math.atan(this.slope)) * this.speed;
+        this.y = this.y + Math.sin(Math.atan(this.slope)) * this.speed;
+    }
+
+
+    var SmokeParticle = function (paramX, paramY, rgb) {
+        this.x = paramX;
+        this.y = paramY;
+        this.opacity = 0.5
+        this.radius = 2 + Math.random();
+        this.rgb = rgb;
+    };
+
+    SmokeParticle.prototype.draw = function(ctx) {
+        ctx.save();
+
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(' + this.rgb + ',' + this.opacity + ')';
+        ctx.shadowColor = 'rgba(' + this.rgb + ',1)';
+
+        //ctx.shadowBlur = 5;
+
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, true);
+        ctx.fill();
+
+        this.radius = this.radius + 0.05;
+        this.opacity = this.opacity - 0.005;
+        if (this.opacity <= 0) {
+            this.destroyed = true;
+        }
+        ;
+
+        ctx.restore();
+    };
+
+    var stage;
+    var init = function(jet_img_src) {
+
+        var canvas = document.createElement('canvas');
+        canvas.id = "canvas_doodle";
+        canvas.height = window.innerHeight || html.clientHeight;
+        canvas.width = window.innerWidth || html.clientWidth;
+        var canvasStyle = canvas.style;
+        canvasStyle.position = 'fixed';
+        canvasStyle.top = 0;
+        canvasStyle.left = 0;
+        canvasStyle.zIndex = 1138;
+        canvasStyle['pointerEvents'] = 'none';
+        document.body.appendChild(canvas);
+        stage = new Stage(canvas);
+        resources.jet_img = new Image();
+        resources.jet_img.src = jet_img_src;
+        resources.jet_img.onload = function() {
+            stage.setup();
+            requestAnimationFrame(stage.frame.bind(stage))
+        }
+
+    };
+
+    var destroy = function() {
+        stage.destroy();
+        setTimeout(function() {
+            document.body.removeChild(document.getElementById("canvas_doodle"));
+        }, 50);
+        delete stage;
+    }
+
+    return {
+        "init":init,
+        "destroy":destroy
+    }
+
+})();
